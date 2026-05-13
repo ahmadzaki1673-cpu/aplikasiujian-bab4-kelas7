@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBT - PENDIDIKAN PANCASILA VII</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- KONFIGURASI ---
+        const GOOGLE_SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzkVR-mDndlpu3V_yRakKU6Pa9uLYeDJAg4WnAEjz7M6er3_mD9hRv52aqw5_FXalA/exec"; // Ganti dengan URL deployment GS Anda
+        const STORAGE_KEY = "cbt_PANCASILA_VII";
+        const DURATION_MINUTES = 60;
+
+        const questionsData = [
+            { id: 1, q: "Apa semboyan negara Indonesia yang melambangkan persatuan dalam keberagaman?", options: ["Tut Wuri Handayani", "Bhinneka Tunggal Ika", "Pancasila Jaya", "Bersatu Kita Teguh"], correct: 1 },
+            { id: 2, q: "Burung mitologi yang dijadikan sebagai lambang negara Indonesia adalah...", options: ["Rajawali", "Elang Jawa", "Garuda", "Merpati Putih"], correct: 2 },
+            { id: 3, q: "Berapa jumlah agama yang secara resmi diakui oleh pemerintah Indonesia saat ini?", options: ["4 Agama", "5 Agama", "6 Agama", "7 Agama"], correct: 2 },
+            { id: 4, q: "Suku Jawa, Sunda, dan Madura merupakan suku-suku besar yang sebagian besar mendiami pulau...", options: ["Sumatera", "Sulawesi", "Kalimantan", "Jawa"], correct: 3 },
+            { id: 5, q: "Tempat ibadah yang digunakan oleh umat beragama Hindu di Indonesia disebut...", options: ["Pura", "Vihara", "Klenteng", "Gereja"], correct: 0 },
+            { id: 6, q: "Suku Minangkabau yang terkenal dengan tradisi merantau dan rumah gadang berasal dari provinsi...", options: ["Sumatera Utara", "Sumatera Barat", "Riau", "Aceh"], correct: 1 },
+            { id: 7, q: "Alat musik tradisional angklung yang terbuat dari bambu merupakan warisan budaya dari daerah...", options: ["Jawa Tengah", "Jawa Timur", "Jawa Barat", "Banten"], correct: 2 },
+            { id: 8, q: "Suku Asmat dan Dani adalah salah satu kekayaan keberagaman suku bangsa yang berada di pulau...", options: ["Papua", "Maluku", "Nusa Tenggara", "Bali"], correct: 0 },
+            { id: 9, q: "Kitab suci bagi umat yang memeluk agama Buddha adalah...", options: ["Weda", "Al-Qur'an", "Alkitab", "Tripitaka"], correct: 3 },
+            { id: 10, q: "Tari Pendet dan Tari Kecak merupakan kesenian tari tradisional yang sangat terkenal dari daerah...", options: ["Sumatra Selatan", "Bali", "Jawa Tengah", "Kalimantan Timur"], correct: 1 },
+            { id: 11, q: "Makna filosofis dari semboyan 'Bhinneka Tunggal Ika' adalah...", options: ["Berbeda-beda tetapi tetap satu jua", "Keadilan sosial bagi seluruh rakyat", "Bergotong royong membangun negara", "Bersatu kita teguh bercerai kita runtuh"], correct: 0 },
+            { id: 12, q: "Faktor alamiah yang sangat memengaruhi tingginya tingkat keberagaman masyarakat Indonesia adalah...", options: ["Letak geografis di persimpangan jalur perdagangan dunia", "Kesamaan iklim tropis di seluruh Nusantara", "Sistem pemerintahan yang sentralistik di masa lalu", "Mayoritas penduduk bermata pencaharian petani"], correct: 0 },
+            { id: 13, q: "Sikap yang menganggap suku bangsa dan kebudayaannya sendiri lebih unggul dan merendahkan kebudayaan suku lain disebut...", options: ["Toleransi", "Chauvinisme", "Etnosentrisme", "Patriotisme"], correct: 2 },
+            { id: 14, q: "Keberagaman ras di Indonesia, seperti masuknya ras Kaukasoid dan keturunan Arab, banyak dipengaruhi oleh faktor historis yaitu...", options: ["Perubahan iklim yang drastis di masa lampau", "Kedatangan bangsa asing untuk berdagang dan menyebarkan agama", "Kebijakan kolonial membagi wilayah", "Migrasi penduduk lokal antarpulau"], correct: 1 },
+            { id: 15, q: "Perubahan sosial dan budaya di tingkat lokal dewasa ini paling cepat terjadi akibat...", options: ["Kebiasaan masyarakat mempertahankan tradisi lama", "Interaksi intensif dengan teknologi informasi dan budaya luar", "Penutupan akses transportasi ke daerah pedalaman", "Larangan penggunaan bahasa daerah di sekolah"], correct: 1 },
+            { id: 16, q: "Dalam konteks kehidupan bermasyarakat, menjaga kerukunan antarumat beragama merupakan wujud pengamalan Pancasila, khususnya sila ke-...", options: ["Pertama", "Kedua", "Ketiga", "Keempat"], correct: 0 },
+            { id: 17, q: "Sikap positif dalam menyikapi keberagaman budaya daerah di Indonesia dapat diwujudkan dengan cara...", options: ["Hanya mau mempelajari kesenian dari daerah asalnya saja", "Mengapresiasi dan turut serta melestarikan tarian dari daerah lain", "Merasa malu menggunakan pakaian adat tradisional", "Mengganti semua budaya lokal dengan budaya modern agar terlihat maju"], correct: 1 },
+            { id: 18, q: "Frasa 'Bhinneka Tunggal Ika' merupakan kutipan sejarah yang sangat bernilai. Kutipan ini diambil dari sebuah kitab kuno yang berjudul...", options: ["Negarakertagama", "Pararaton", "Sutasoma", "Arjunawiwaha"], correct: 2 },
+            { id: 19, q: "Tokoh pujangga besar dari Kerajaan Majapahit yang menulis kitab asal mula kutipan semboyan negara kita adalah...", options: ["Mpu Prapanca", "Mpu Tantular", "Mpu Sedah", "Mpu Panuluh"], correct: 1 },
+            { id: 20, q: "Dampak positif utama dari adanya keberagaman sosial budaya bagi bangsa Indonesia adalah...", options: ["Memudahkan timbulnya konflik antar golongan", "Menjadi kekayaan bangsa dan daya tarik pariwisata dunia", "Membuat proses pembuatan undang-undang menjadi lama", "Menghilangkan identitas kedaerahan masing-masing"], correct: 1 },
+            { id: 21, q: "Arus globalisasi membawa tantangan tersendiri berupa masuknya budaya asing secara masif. Sikap kritis yang paling sesuai dengan semangat Bhinneka Tunggal Ika dalam menghadapinya adalah...", options: ["Menerima segala inovasi tanpa seleksi agar tidak tertinggal peradaban", "Menutup diri secara total dari budaya global demi kemurnian tradisi", "Melakukan seleksi adaptif; menyerap yang positif dan sejalan dengan nilai Pancasila", "Memaksakan budaya lokal untuk menggantikan budaya global di kancah internasional"], correct: 2 },
+            { id: 22, q: "Perubahan sosial dalam masyarakat majemuk dapat memicu disintegrasi bangsa apabila tidak diiringi dengan integrasi sosial. Faktor utama yang berfungsi mencegah disintegrasi tersebut adalah...", options: ["Penyeragaman sistem pemerintahan daerah", "Penguatan sikap toleransi dan konsensus nasional berbasis keadilan", "Pemisahan wilayah permukiman berdasarkan etnis", "Pembatasan ketat terhadap kebebasan pers dan opini publik"], correct: 1 },
+            { id: 23, q: "Keberagaman masyarakat Indonesia dapat dikonseptualisasikan sebagai fenomena 'Salad Bowl' daripada 'Melting Pot'. Makna dari konsep tersebut terhadap pelestarian budaya adalah...", options: ["Masyarakat Indonesia telah melebur menjadi satu budaya baru yang homogen secara utuh", "Identitas kultural daerah tetap eksis dan berdampingan secara harmonis membentuk kesatuan negara", "Budaya pendatang lebih mendominasi dan menggeser keberadaan budaya asli", "Masyarakat dipaksa menanggalkan adat istiadatnya demi kepentingan negara"], correct: 1 },
+            { id: 24, q: "Dalam stratifikasi sosial, seringkali muncul pengelompokan (antargolongan) berdasarkan status ekonomi. Sikap ber-Bhinneka Tunggal Ika dalam menyikapi kesenjangan antargolongan ini adalah...", options: ["Memberikan keistimewaan hukum khusus bagi golongan kelas atas", "Menumbuhkan kesetiakawanan sosial dan kesetaraan hak tanpa memandang status harta", "Memisahkan fasilitas publik agar tidak terjadi kecemburuan sosial", "Mewajibkan golongan atas membagikan seluruh asetnya kepada negara"], correct: 1 },
+            { id: 25, q: "Fenomena 'Cultural Lag' sering terjadi dalam proses perubahan sosial dan budaya bangsa. Hal ini merujuk pada kondisi di mana...", options: ["Terjadi ketertinggalan laju perkembangan budaya non-material dibandingkan budaya material", "Generasi muda secara radikal meninggalkan seluruh budaya leluhur dalam waktu singkat", "Pemerintah gagal melestarikan situs-situs bersejarah di berbagai daerah", "Masyarakat daerah pesisir lebih lambat berkembang dibandingkan masyarakat pegunungan"], correct: 0 },
+            { id: 26, q: "Di era digital yang serba cepat, penyebaran hoaks bernuansa SARA sangat rentan mengancam keberagaman bangsa. Upaya preventif strategis yang paling fundamental adalah...", options: ["Melakukan pemblokiran massal terhadap platform media sosial asing", "Meningkatkan literasi digital masyarakat agar kritis mengolah informasi", "Melarang perbincangan tentang agama dan suku di ranah publik", "Memberikan sanksi denda bagi pembuat gawai cerdas"], correct: 1 },
+            { id: 27, q: "Tantangan pengaruh perubahan budaya tingkat global antara lain adalah ancaman lunturnya semangat gotong royong yang digantikan oleh sifat...", options: ["Kolektivisme", "Sinkretisme", "Individualisme", "Pluralisme"], correct: 2 },
+            { id: 28, q: "Keberagaman ras di Indonesia ditandai dengan sebaran populasi Ras Malayan Mongoloid di wilayah barat dan Ras Melanesoid di wilayah timur. Konsekuensi logis dari keberagaman ini adalah...", options: ["Penghapusan ras lokal untuk membentuk rumpun baru", "Pemberlakuan regulasi yang menolak segala bentuk diskriminasi dan rasisme", "Pembagian hak kewarganegaraan secara proporsional berdasar jumlah populasi ras", "Larangan dilakukannya pernikahan silang antar ras"], correct: 1 },
+            { id: 29, q: "Faktor demografi (kependudukan) seperti migrasi dan urbanisasi mendorong perubahan sosial masyarakat perkotaan. Hubungan positif antara migrasi dan kebinekaan adalah...", options: ["Menyebabkan terjadinya akulturasi budaya yang memperkaya mozaik budaya daerah tujuan", "Menurunkan tingkat perekonomian penduduk lokal secara signifikan", "Mempercepat kepunahan bahasa daerah karena tidak lagi digunakan di kota", "Memicu sentralisasi kekuasaan budaya pada satu kelompok etnis dominan"], correct: 0 },
+            { id: 30, q: "Aktualisasi sejati dari semboyan Bhinneka Tunggal Ika dalam perumusan peraturan daerah (Perda) mengharuskan pemerintah untuk...", options: ["Menyusun peraturan yang hanya berpihak pada kelompok mayoritas", "Mengadopsi hukum adat setempat bagi warga asing", "Membuat regulasi yang mengakomodasi kepentingan bersama serta melindungi hak minoritas", "Menyamaratakan seluruh kebijakan daerah tanpa memandang kekhususan lokal"], correct: 2 }
+        ];
+
+        // --- UTILS ---
+        const shuffleArray = (array) => {
+            let newArr = [...array];
+            for (let i = newArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+            }
+            return newArr;
+        };
+
+        const prepareQuestions = () => {
+            return shuffleArray(questionsData).map(item => {
+                const originalCorrectOption = item.options[item.correct];
+                const shuffledOptions = shuffleArray(item.options);
+                return {
+                    ...item,
+                    options: shuffledOptions,
+                    correctIndex: shuffledOptions.indexOf(originalCorrectOption)
+                };
+            });
+        };
+
+        // --- MAIN COMPONENT ---
+        function App() {
+            const [view, setView] = useState('login'); // login, resume, exam, result
+            const [student, setStudent] = useState({ name: '', class: '', date: new Date().toISOString().split('T')[0] });
+            const [questions, setQuestions] = useState([]);
+            const [answers, setAnswers] = useState({});
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [timeLeft, setTimeLeft] = useState(DURATION_MINUTES * 60);
+            const [violations, setViolations] = useState(0);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [finalScore, setFinalScore] = useState(null);
+
+            // Init Lucide
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+
+            // Resume Session Check
+            useEffect(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) setView('resume');
+            }, []);
+
+            // Security: Anti Cheat
+            useEffect(() => {
+                if (view !== 'exam') return;
+
+                const handleViolation = () => {
+                    setViolations(prev => {
+                        const next = prev + 1;
+                        if (next >= 2) {
+                            alert("Anda melanggar aturan ujian 2x. Ujian akan dikirim otomatis.");
+                            handleSubmit();
+                        } else {
+                            alert("Peringatan! Jangan keluar dari mode fullscreen atau pindah tab.");
+                        }
+                        return next;
+                    });
+                };
+
+                const onVisibilityChange = () => { if (document.visibilityState === 'hidden') handleViolation(); };
+                const onFullscreenChange = () => { if (!document.fullscreenElement) handleViolation(); };
+
+                document.addEventListener('visibilitychange', onVisibilityChange);
+                document.addEventListener('fullscreenchange', onFullscreenChange);
+                return () => {
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                    document.removeEventListener('fullscreenchange', onFullscreenChange);
+                };
+            }, [view, violations]);
+
+            // Timer & Auto Save
+            useEffect(() => {
+                if (view !== 'exam') return;
+                if (timeLeft <= 0) { handleSubmit(); return; }
+
+                const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+                
+                // Auto Save Every 5s
+                const saver = setInterval(() => {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ student, questions, answers, timeLeft, currentIndex, violations }));
+                }, 5000);
+
+                return () => { clearInterval(timer); clearInterval(saver); };
+            }, [view, timeLeft, answers, currentIndex]);
+
+            const startExam = (isNew = true) => {
+                if (isNew) {
+                    if (!student.name || !student.class) return alert("Isi data diri dengan lengkap!");
+                    setQuestions(prepareQuestions());
+                    setAnswers({});
+                    setTimeLeft(DURATION_MINUTES * 60);
+                    setViolations(0);
+                    setCurrentIndex(0);
+                } else {
+                    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+                    setStudent(saved.student);
+                    setQuestions(saved.questions);
+                    setAnswers(saved.answers);
+                    setTimeLeft(saved.timeLeft);
+                    setViolations(saved.violations);
+                    setCurrentIndex(saved.currentIndex);
+                }
+                
+                document.documentElement.requestFullscreen().catch(() => {});
+                setView('exam');
+            };
+
+            const handleSubmit = async () => {
+                if (isSubmitting) return;
+                setIsSubmitting(true);
+
+                // Calculate Score
+                let correctCount = 0;
+                questions.forEach((q, idx) => {
+                    if (answers[idx] === q.correctIndex) correctCount++;
+                });
+                const score = Math.round((correctCount / questions.length) * 100);
+                setFinalScore(score);
+
+                const payload = {
+                    nama: student.name,
+                    kelas: student.class,
+                    tanggal: student.date,
+                    skor: score,
+                    pelanggaran: violations,
+                    keterangan: timeLeft <= 0 ? "Waktu Habis" : "Selesai Normal"
+                };
+
+                try {
+                    await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) { console.error("Submit Error", e); }
+
+                localStorage.removeItem(STORAGE_KEY);
+                if (document.fullscreenElement) document.exitFullscreen();
+                setView('result');
+                setIsSubmitting(false);
+            };
+
+            const formatTime = (seconds) => {
+                const m = Math.floor(seconds / 60);
+                const s = seconds % 60;
+                return `${m}:${s < 10 ? '0' : ''}${s}`;
+            };
+
+            if (view === 'login') return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-600 to-indigo-800">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i data-lucide="book-open" className="text-blue-600 w-8 h-8"></i>
+                            </div>
+                            <h1 className="text-2xl font-bold text-gray-800 uppercase">Ujian Pendidikan Pancasila</h1>
+                            <p className="text-gray-500 text-sm">Bab 4: Keberagaman Bangsa - Kelas VII</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold mb-1">Nama Lengkap</label>
+                                <input type="text" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    placeholder="Masukkan nama..." value={student.name} onChange={e => setStudent({...student, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold mb-1">Kelas</label>
+                                <input type="text" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    placeholder="Contoh: VII-A" value={student.class} onChange={e => setStudent({...student, class: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold mb-1">Tanggal Ujian</label>
+                                <input type="date" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    value={student.date} onChange={e => setStudent({...student, date: e.target.value})} />
+                            </div>
+                            <button onClick={() => startExam(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg">
+                                MULAI UJIAN
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (view === 'resume') return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-xl shadow-xl max-w-md text-center">
+                        <i data-lucide="history" className="w-16 h-16 text-yellow-500 mx-auto mb-4"></i>
+                        <h2 className="text-xl font-bold mb-2">Sesi Ujian Tersimpan Ditemukan!</h2>
+                        <p className="text-gray-600 mb-6">Kami menemukan progres ujian terakhir Anda. Ingin melanjutkan?</p>
+                        <div className="flex gap-4">
+                            <button onClick={() => { localStorage.removeItem(STORAGE_KEY); setView('login'); }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Mulai Ulang</button>
+                            <button onClick={() => startExam(false)} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Lanjutkan</button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (view === 'exam') return (
+                <div className="min-h-screen flex flex-col md:flex-row">
+                    {/* Main Area */}
+                    <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                        <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0">
+                            <div>
+                                <span className="text-xs font-bold text-blue-600 block uppercase">Pendidikan Pancasila VII</span>
+                                <h2 className="font-bold text-gray-700">Soal No. {currentIndex + 1}</h2>
+                            </div>
+                            <div className={`px-4 py-2 rounded-lg font-mono font-bold text-lg ${timeLeft < 300 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
+                                {formatTime(timeLeft)}
+                            </div>
+                        </header>
+
+                        <main className="flex-1 overflow-y-auto p-6 no-scrollbar">
+                            <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border p-8">
+                                <p className="text-lg text-gray-800 leading-relaxed mb-8">{questions[currentIndex].q}</p>
+                                
+                                <div className="space-y-3">
+                                    {questions[currentIndex].options.map((opt, i) => (
+                                        <label key={i} className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${answers[currentIndex] === i ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}>
+                                            <input type="radio" name="option" className="hidden" checked={answers[currentIndex] === i} 
+                                                onChange={() => setAnswers({...answers, [currentIndex]: i})} />
+                                            <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center ${answers[currentIndex] === i ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300'}`}>
+                                                {String.fromCharCode(65 + i)}
+                                            </div>
+                                            <span className="text-gray-700">{opt}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </main>
+
+                        <footer className="bg-white border-t p-4 flex justify-between shrink-0">
+                            <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(c => c - 1)} className="px-6 py-2 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-50 font-semibold">Sebelumnya</button>
+                            <div className="flex gap-2">
+                                {currentIndex === questions.length - 1 ? (
+                                    <button onClick={() => { if(confirm("Selesai dan kumpulkan?")) handleSubmit(); }} className="px-8 py-2 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700">SUBMIT</button>
+                                ) : (
+                                    <button onClick={() => setCurrentIndex(c => c + 1)} className="px-8 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700">Selanjutnya</button>
+                                )}
+                            </div>
+                        </footer>
+                    </div>
+
+                    {/* Navigation Sidebar */}
+                    <div className="w-full md:w-80 bg-gray-50 border-l flex flex-col h-screen overflow-hidden">
+                        <div className="p-4 border-b bg-white">
+                            <h3 className="font-bold text-gray-700">Navigasi Soal</h3>
+                            <p className="text-xs text-gray-500 mt-1">Total {questions.length} Soal</p>
+                        </div>
+                        <div className="p-4 grid grid-cols-5 gap-2 overflow-y-auto">
+                            {questions.map((_, i) => (
+                                <button key={i} onClick={() => setCurrentIndex(i)} className={`h-10 rounded-lg text-sm font-bold transition-all
+                                    ${currentIndex === i ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                                    ${answers[i] !== undefined ? 'bg-blue-600 text-white' : 'bg-white border text-gray-400'}
+                                `}>
+                                    {i + 1}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="mt-auto p-4 border-t bg-white">
+                            <div className="flex items-center text-sm text-gray-600 mb-2">
+                                <i data-lucide="user" className="w-4 h-4 mr-2"></i> {student.name}
+                            </div>
+                            <div className="flex items-center text-sm text-gray-600">
+                                <i data-lucide="shield-alert" className="w-4 h-4 mr-2"></i> Pelanggaran: {violations}/2
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (view === 'result') return (
+                <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
+                    <div className="bg-white p-10 rounded-2xl shadow-xl max-w-md w-full text-center">
+                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i data-lucide="check-circle" className="w-12 h-12 text-green-600"></i>
+                        </div>
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">Ujian Selesai!</h1>
+                        <p className="text-gray-600 mb-8">Terima kasih telah mengerjakan ujian dengan jujur.</p>
+                        
+                        <div className="bg-gray-50 rounded-xl p-6 mb-8">
+                            <div className="text-sm text-gray-500 uppercase tracking-widest mb-1">Skor Anda</div>
+                            <div className="text-5xl font-black text-blue-600">{finalScore}</div>
+                        </div>
+
+                        <div className="text-left text-sm text-gray-500 space-y-2 border-t pt-6">
+                            <div className="flex justify-between"><span>Nama:</span><span className="font-bold text-gray-700">{student.name}</span></div>
+                            <div className="flex justify-between"><span>Kelas:</span><span className="font-bold text-gray-700">{student.class}</span></div>
+                            <div className="flex justify-between"><span>Pelanggaran:</span><span className={`font-bold ${violations > 0 ? 'text-red-500' : 'text-green-500'}`}>{violations} Kali</span></div>
+                        </div>
+                        <button onClick={() => window.location.reload()} className="mt-8 w-full py-3 bg-gray-800 text-white rounded-xl font-bold">KEMBALI KE BERANDA</button>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
