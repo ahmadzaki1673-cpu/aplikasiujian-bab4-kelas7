@@ -12,6 +12,11 @@
     <style>
         body { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Animasi Modal */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-overlay { animation: fadeIn 0.2s ease-out forwards; }
+        .modal-content { animation: slideUp 0.3s ease-out forwards; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -92,6 +97,10 @@
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [finalScore, setFinalScore] = useState(null);
 
+            // Modal States
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+            const [alertData, setAlertData] = useState({ show: false, message: '', isCritical: false });
+
             // Init Lucide
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
 
@@ -103,16 +112,26 @@
 
             // Security: Anti Cheat
             useEffect(() => {
+                // Hanya jalankan pemantauan saat sedang di halaman ujian
                 if (view !== 'exam') return;
 
                 const handleViolation = () => {
                     setViolations(prev => {
                         const next = prev + 1;
                         if (next >= 2) {
-                            alert("Anda melanggar aturan ujian 2x. Ujian akan dikirim otomatis.");
-                            handleSubmit();
+                            setAlertData({
+                                show: true,
+                                message: "Anda telah melanggar aturan ujian sebanyak 2 kali. Ujian dihentikan dan jawaban dikirim otomatis.",
+                                isCritical: true
+                            });
+                            // Beri waktu sejenak agar siswa bisa membaca peringatan sebelum disubmit
+                            setTimeout(() => handleSubmit(), 4000);
                         } else {
-                            alert("Peringatan! Jangan keluar dari mode fullscreen atau pindah tab.");
+                            setAlertData({
+                                show: true,
+                                message: "PERINGATAN! Anda terdeteksi keluar dari layar ujian. Jangan keluar dari mode fullscreen atau memindahkan tab. Pelanggaran berikutnya akan otomatis menghentikan ujian.",
+                                isCritical: false
+                            });
                         }
                         return next;
                     });
@@ -127,12 +146,16 @@
                     document.removeEventListener('visibilitychange', onVisibilityChange);
                     document.removeEventListener('fullscreenchange', onFullscreenChange);
                 };
-            }, [view, violations]);
+            }, [view]);
 
             // Timer & Auto Save
             useEffect(() => {
                 if (view !== 'exam') return;
-                if (timeLeft <= 0) { handleSubmit(); return; }
+                if (timeLeft <= 0) { 
+                    setAlertData({ show: true, message: "Waktu ujian telah habis! Jawaban Anda sedang dikirim otomatis.", isCritical: true });
+                    setTimeout(() => handleSubmit(), 3000);
+                    return; 
+                }
 
                 const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
                 
@@ -146,7 +169,9 @@
 
             const startExam = (isNew = true) => {
                 if (isNew) {
-                    if (!student.name || !student.class) return alert("Isi data diri dengan lengkap!");
+                    if (!student.name || !student.class) {
+                        return setAlertData({ show: true, message: "Mohon isi Nama Lengkap dan Kelas terlebih dahulu!", isCritical: false });
+                    }
                     setQuestions(prepareQuestions());
                     setAnswers({});
                     setTimeLeft(DURATION_MINUTES * 60);
@@ -162,20 +187,23 @@
                     setCurrentIndex(saved.currentIndex);
                 }
                 
-                document.documentElement.requestFullscreen().catch(() => {});
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log("Browser block fullscreen request");
+                });
                 setView('exam');
             };
 
             const handleSubmit = async () => {
                 if (isSubmitting) return;
                 setIsSubmitting(true);
+                setShowConfirmModal(false); // Tutup modal jika masih terbuka
 
                 // Calculate Score
                 let correctCount = 0;
                 questions.forEach((q, idx) => {
                     if (answers[idx] === q.correctIndex) correctCount++;
                 });
-                const score = Math.round((correctCount / questions.length) * 100);
+                const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
                 setFinalScore(score);
 
                 const payload = {
@@ -184,7 +212,7 @@
                     tanggal: student.date,
                     skor: score,
                     pelanggaran: violations,
-                    keterangan: timeLeft <= 0 ? "Waktu Habis" : "Selesai Normal"
+                    keterangan: timeLeft <= 0 ? "Waktu Habis" : (violations >= 2 ? "Diskualifikasi" : "Selesai Normal")
                 };
 
                 try {
@@ -197,7 +225,8 @@
                 } catch (e) { console.error("Submit Error", e); }
 
                 localStorage.removeItem(STORAGE_KEY);
-                if (document.fullscreenElement) document.exitFullscreen();
+                if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+                setAlertData({ show: false, message: '', isCritical: false }); // Reset alert
                 setView('result');
                 setIsSubmitting(false);
             };
@@ -208,8 +237,67 @@
                 return `${m}:${s < 10 ? '0' : ''}${s}`;
             };
 
+            // MODAL COMPONENTS
+            const AlertModal = () => (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4 modal-overlay">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl modal-content border-t-4 border-red-500">
+                        <div className="flex items-center justify-center w-16 h-16 bg-red-100 text-red-600 rounded-full mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-center text-gray-800 mb-3">Pemberitahuan Sistem</h3>
+                        <p className="text-center text-gray-600 mb-6 font-medium leading-relaxed">
+                            {alertData.message}
+                        </p>
+                        {!alertData.isCritical && (
+                            <button onClick={() => setAlertData({ show: false, message: '', isCritical: false })} 
+                                className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-200">
+                                Mengerti
+                            </button>
+                        )}
+                        {alertData.isCritical && (
+                            <div className="w-full py-3 flex justify-center items-center gap-2 text-red-600 font-bold bg-red-50 rounded-xl">
+                                <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                                Memproses...
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+
+            const ConfirmModal = () => (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4 modal-overlay">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl modal-content">
+                        <div className="flex items-center justify-center w-16 h-16 bg-blue-100 text-blue-600 rounded-full mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-center text-gray-800 mb-2">Selesai Ujian?</h3>
+                        <p className="text-center text-gray-600 mb-6 text-sm">
+                            Sisa waktu Anda <b>{formatTime(timeLeft)}</b>. <br/>
+                            Pastikan semua soal telah terjawab. Anda tidak dapat mengubah jawaban setelah dikirim.
+                        </p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setShowConfirmModal(false)} 
+                                className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
+                                Periksa Lagi
+                            </button>
+                            <button onClick={handleSubmit} 
+                                className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
+                                Ya, Kumpulkan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+
+
+            // --- VIEWS ---
             if (view === 'login') return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-600 to-indigo-800">
+                    {alertData.show && <AlertModal />}
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
                         <div className="text-center mb-8">
                             <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -243,86 +331,100 @@
             );
 
             if (view === 'resume') return (
-                <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
                     <div className="bg-white p-8 rounded-xl shadow-xl max-w-md text-center">
                         <i data-lucide="history" className="w-16 h-16 text-yellow-500 mx-auto mb-4"></i>
                         <h2 className="text-xl font-bold mb-2">Sesi Ujian Tersimpan Ditemukan!</h2>
-                        <p className="text-gray-600 mb-6">Kami menemukan progres ujian terakhir Anda. Ingin melanjutkan?</p>
+                        <p className="text-gray-600 mb-6">Kami menemukan progres ujian terakhir Anda. Ingin melanjutkan atau mengulang dari awal?</p>
                         <div className="flex gap-4">
-                            <button onClick={() => { localStorage.removeItem(STORAGE_KEY); setView('login'); }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Mulai Ulang</button>
-                            <button onClick={() => startExam(false)} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Lanjutkan</button>
+                            <button onClick={() => { localStorage.removeItem(STORAGE_KEY); setView('login'); }} className="flex-1 px-4 py-3 border rounded-xl hover:bg-gray-50 font-bold text-gray-600">Hapus Data</button>
+                            <button onClick={() => startExam(false)} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-lg shadow-blue-200">Lanjutkan</button>
                         </div>
                     </div>
                 </div>
             );
 
             if (view === 'exam') return (
-                <div className="min-h-screen flex flex-col md:flex-row">
+                <div className="min-h-screen flex flex-col md:flex-row relative">
+                    {alertData.show && <AlertModal />}
+                    {showConfirmModal && <ConfirmModal />}
+                    
                     {/* Main Area */}
                     <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                        <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0">
+                        <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0 shadow-sm z-10">
                             <div>
-                                <span className="text-xs font-bold text-blue-600 block uppercase">Pendidikan Pancasila VII</span>
-                                <h2 className="font-bold text-gray-700">Soal No. {currentIndex + 1}</h2>
+                                <span className="text-xs font-bold text-blue-600 block uppercase tracking-wider">Pendidikan Pancasila VII</span>
+                                <h2 className="font-bold text-gray-800 text-lg">Soal No. {currentIndex + 1}</h2>
                             </div>
-                            <div className={`px-4 py-2 rounded-lg font-mono font-bold text-lg ${timeLeft < 300 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
-                                {formatTime(timeLeft)}
+                            <div className={`px-4 py-2 rounded-lg font-mono font-bold text-xl flex items-center gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
+                                <i data-lucide="clock" className="w-5 h-5"></i> {formatTime(timeLeft)}
                             </div>
                         </header>
 
-                        <main className="flex-1 overflow-y-auto p-6 no-scrollbar">
-                            <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border p-8">
-                                <p className="text-lg text-gray-800 leading-relaxed mb-8">{questions[currentIndex].q}</p>
+                        <main className="flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar bg-gray-50/50">
+                            <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border p-6 md:p-8">
+                                <p className="text-lg md:text-xl text-gray-800 leading-relaxed mb-8">{questions[currentIndex].q}</p>
                                 
                                 <div className="space-y-3">
                                     {questions[currentIndex].options.map((opt, i) => (
                                         <label key={i} className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${answers[currentIndex] === i ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}>
                                             <input type="radio" name="option" className="hidden" checked={answers[currentIndex] === i} 
                                                 onChange={() => setAnswers({...answers, [currentIndex]: i})} />
-                                            <div className={`w-6 h-6 rounded-full border-2 mr-4 flex items-center justify-center ${answers[currentIndex] === i ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300'}`}>
+                                            <div className={`w-7 h-7 rounded-full border-2 mr-4 flex items-center justify-center shrink-0 font-bold ${answers[currentIndex] === i ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300 text-gray-500'}`}>
                                                 {String.fromCharCode(65 + i)}
                                             </div>
-                                            <span className="text-gray-700">{opt}</span>
+                                            <span className="text-gray-700 md:text-lg">{opt}</span>
                                         </label>
                                     ))}
                                 </div>
                             </div>
                         </main>
 
-                        <footer className="bg-white border-t p-4 flex justify-between shrink-0">
-                            <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(c => c - 1)} className="px-6 py-2 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-50 font-semibold">Sebelumnya</button>
+                        <footer className="bg-white border-t p-4 flex justify-between items-center shrink-0">
+                            <button disabled={currentIndex === 0} onClick={() => setCurrentIndex(c => c - 1)} className="px-6 py-3 rounded-xl bg-gray-100 text-gray-600 disabled:opacity-50 font-bold flex items-center hover:bg-gray-200">
+                                <i data-lucide="chevron-left" className="w-5 h-5 mr-1"></i> Sebelumnya
+                            </button>
                             <div className="flex gap-2">
                                 {currentIndex === questions.length - 1 ? (
-                                    <button onClick={() => { if(confirm("Selesai dan kumpulkan?")) handleSubmit(); }} className="px-8 py-2 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700">SUBMIT</button>
+                                    <button onClick={() => setShowConfirmModal(true)} className="px-8 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg shadow-green-200 flex items-center">
+                                        SUBMIT <i data-lucide="check" className="w-5 h-5 ml-2"></i>
+                                    </button>
                                 ) : (
-                                    <button onClick={() => setCurrentIndex(c => c + 1)} className="px-8 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700">Selanjutnya</button>
+                                    <button onClick={() => setCurrentIndex(c => c + 1)} className="px-8 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center">
+                                        Selanjutnya <i data-lucide="chevron-right" className="w-5 h-5 ml-1"></i>
+                                    </button>
                                 )}
                             </div>
                         </footer>
                     </div>
 
                     {/* Navigation Sidebar */}
-                    <div className="w-full md:w-80 bg-gray-50 border-l flex flex-col h-screen overflow-hidden">
-                        <div className="p-4 border-b bg-white">
-                            <h3 className="font-bold text-gray-700">Navigasi Soal</h3>
-                            <p className="text-xs text-gray-500 mt-1">Total {questions.length} Soal</p>
+                    <div className="w-full md:w-80 bg-white border-l flex flex-col h-screen overflow-hidden shrink-0 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)]">
+                        <div className="p-5 border-b bg-gray-50 flex items-center justify-between">
+                            <div>
+                                <h3 className="font-bold text-gray-800">Navigasi Soal</h3>
+                                <p className="text-xs text-gray-500 mt-1 font-medium">Total {questions.length} Soal</p>
+                            </div>
+                            <div className="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">
+                                {Object.keys(answers).length} Terjawab
+                            </div>
                         </div>
-                        <div className="p-4 grid grid-cols-5 gap-2 overflow-y-auto">
+                        <div className="p-5 grid grid-cols-5 gap-3 overflow-y-auto content-start">
                             {questions.map((_, i) => (
-                                <button key={i} onClick={() => setCurrentIndex(i)} className={`h-10 rounded-lg text-sm font-bold transition-all
-                                    ${currentIndex === i ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
-                                    ${answers[i] !== undefined ? 'bg-blue-600 text-white' : 'bg-white border text-gray-400'}
+                                <button key={i} onClick={() => setCurrentIndex(i)} className={`h-11 rounded-lg text-sm font-bold transition-all shadow-sm
+                                    ${currentIndex === i ? 'ring-2 ring-blue-500 ring-offset-2 scale-110' : ''}
+                                    ${answers[i] !== undefined ? 'bg-blue-600 text-white border-transparent' : 'bg-white border-2 border-gray-200 text-gray-400 hover:border-gray-300'}
                                 `}>
                                     {i + 1}
                                 </button>
                             ))}
                         </div>
-                        <div className="mt-auto p-4 border-t bg-white">
-                            <div className="flex items-center text-sm text-gray-600 mb-2">
-                                <i data-lucide="user" className="w-4 h-4 mr-2"></i> {student.name}
+                        <div className="mt-auto p-5 border-t bg-gray-50">
+                            <div className="flex items-center text-sm text-gray-700 mb-3 font-semibold bg-white p-3 border rounded-lg">
+                                <i data-lucide="user" className="w-5 h-5 mr-3 text-blue-600"></i> {student.name} <span className="ml-auto text-xs text-gray-400">{student.class}</span>
                             </div>
-                            <div className="flex items-center text-sm text-gray-600">
-                                <i data-lucide="shield-alert" className="w-4 h-4 mr-2"></i> Pelanggaran: {violations}/2
+                            <div className={`flex items-center text-sm font-bold p-3 border rounded-lg ${violations > 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                                <i data-lucide="shield-alert" className="w-5 h-5 mr-3"></i> Pelanggaran: {violations}/2
                             </div>
                         </div>
                     </div>
@@ -331,24 +433,26 @@
 
             if (view === 'result') return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-gray-100">
-                    <div className="bg-white p-10 rounded-2xl shadow-xl max-w-md w-full text-center">
-                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-md w-full text-center">
+                        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                             <i data-lucide="check-circle" className="w-12 h-12 text-green-600"></i>
                         </div>
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Ujian Selesai!</h1>
-                        <p className="text-gray-600 mb-8">Terima kasih telah mengerjakan ujian dengan jujur.</p>
+                        <p className="text-gray-600 mb-8">Terima kasih telah mengerjakan ujian dengan tertib.</p>
                         
-                        <div className="bg-gray-50 rounded-xl p-6 mb-8">
-                            <div className="text-sm text-gray-500 uppercase tracking-widest mb-1">Skor Anda</div>
-                            <div className="text-5xl font-black text-blue-600">{finalScore}</div>
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-8 mb-8">
+                            <div className="text-sm text-blue-600 font-bold uppercase tracking-widest mb-2">Nilai Akhir</div>
+                            <div className="text-6xl font-black text-blue-600 drop-shadow-sm">{finalScore}</div>
                         </div>
 
-                        <div className="text-left text-sm text-gray-500 space-y-2 border-t pt-6">
-                            <div className="flex justify-between"><span>Nama:</span><span className="font-bold text-gray-700">{student.name}</span></div>
-                            <div className="flex justify-between"><span>Kelas:</span><span className="font-bold text-gray-700">{student.class}</span></div>
+                        <div className="text-left text-sm text-gray-600 space-y-3 bg-gray-50 p-6 rounded-xl">
+                            <div className="flex justify-between border-b border-gray-200 pb-2"><span>Nama:</span><span className="font-bold text-gray-800">{student.name}</span></div>
+                            <div className="flex justify-between border-b border-gray-200 pb-2"><span>Kelas:</span><span className="font-bold text-gray-800">{student.class}</span></div>
                             <div className="flex justify-between"><span>Pelanggaran:</span><span className={`font-bold ${violations > 0 ? 'text-red-500' : 'text-green-500'}`}>{violations} Kali</span></div>
                         </div>
-                        <button onClick={() => window.location.reload()} className="mt-8 w-full py-3 bg-gray-800 text-white rounded-xl font-bold">KEMBALI KE BERANDA</button>
+                        <button onClick={() => window.location.reload()} className="mt-8 w-full py-4 bg-gray-800 hover:bg-gray-900 transition-colors text-white rounded-xl font-bold shadow-xl">
+                            KEMBALI KE BERANDA
+                        </button>
                     </div>
                 </div>
             );
